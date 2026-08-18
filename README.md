@@ -17,6 +17,16 @@ reliably for an unattended daily job.
   over the visible text since the site doesn't expose structured data). The
   title is derived from the listing URL's own SEO slug, since every detail page
   shares one generic `<title>`/`<h1>`.
+- Only whole-aircraft-for-sale listings are published. Each ad's title must state a
+  model year and match a recognized American Champion model code/name (7GCAA, 8KCAB,
+  Super Decathlon, Citabria, Scout, Explorer, etc. - see `_MODEL_CODE_RE`/
+  `_MODEL_NAME_RULES` in `scraper/barnstormers.py`); titles that read as parts,
+  accessories, services, or raffles are dropped. Every surviving listing's title is
+  rewritten to a canonical **`YEAR American Champion MODEL`** form (e.g. `1997
+  American Champion Super Decathlon`), regardless of how the original ad was
+  worded, so the page reads consistently. A real side effect: ads that never state
+  a model year in the title can't be reformatted and are dropped too, even if
+  they're genuine aircraft.
 - `main.py` runs the scraper, de-duplicates results, and renders them into
   `docs/index.html` titled **"Other American Champion Ads on the Web"**, with
   one row per listing: Title (linked to the original ad), Price, Location,

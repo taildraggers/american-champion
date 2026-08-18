@@ -1,4 +1,12 @@
-"""Scraper for American Champion aircraft listings on barnstormers.com."""
+"""Scraper for American Champion aircraft listings on barnstormers.com.
+
+Only whole-aircraft-for-sale listings are published: each ad's title is
+matched against a known American Champion model code/name and must state a
+model year, and titles that look like parts/accessories/services/raffles
+are dropped. Surviving titles are rewritten to a canonical
+"YEAR American Champion MODEL" form so every listing follows the same
+format.
+"""
 from __future__ import annotations
 
 import re
@@ -6,10 +14,18 @@ from urllib.parse import unquote, urljoin
 
 from bs4 import BeautifulSoup
 
-from .common import Listing, extract_date, extract_location, extract_price, fetch
+from .common import (
+    Listing,
+    extract_date,
+    extract_location,
+    extract_price,
+    fetch,
+    format_aircraft_title,
+)
 
 SITE_NAME = "Barnstormers.com"
 BASE = "https://www.barnstormers.com"
+MAKE = "American Champion"
 
 # Category pages known to carry American Champion listings on Barnstormers.
 CATEGORY_URLS = [
@@ -20,6 +36,29 @@ CATEGORY_URLS = [
 MAX_PAGES = 10
 LISTING_LINK_RE = re.compile(r"^/classified-(\d+)-(.+)\.html$")
 GENERIC_SITE_TITLE_SNIPPET = "barnstormers.com find aircraft"
+
+_MODEL_CODE_RE = re.compile(
+    r"\b(7gcaa|7gcbc|7eca|7kcab|8kcab|8gcbc|7ec)", re.IGNORECASE
+)
+_MODEL_NAME_RULES = [
+    (re.compile(r"super\s*decathlon", re.IGNORECASE), "Super Decathlon"),
+    (re.compile(r"xtreme\s*decathlon", re.IGNORECASE), "Xtreme Decathlon"),
+    (re.compile(r"\bdecathlon\b", re.IGNORECASE), "Decathlon"),
+    (re.compile(r"high\s*country\s*explorer", re.IGNORECASE), "High Country Explorer"),
+    (re.compile(r"\bexplorer\b", re.IGNORECASE), "Explorer"),
+    (re.compile(r"\bcitabria\b", re.IGNORECASE), "Citabria"),
+    (re.compile(r"\bscout\b", re.IGNORECASE), "Scout"),
+]
+
+
+def _extract_model(title: str) -> tuple[str, str] | None:
+    for pattern, canonical in _MODEL_NAME_RULES:
+        if pattern.search(title):
+            return MAKE, canonical
+    match = _MODEL_CODE_RE.search(title)
+    if match:
+        return MAKE, match.group(1).upper()
+    return None
 
 
 def _title_from_url(url: str) -> str:
@@ -75,6 +114,12 @@ def _parse_detail_page(url: str, html: str) -> Listing | None:
         return None
 
     text = soup.get_text(" ", strip=True)
+
+    formatted_title = format_aircraft_title(title, text, _extract_model)
+    if not formatted_title:
+        return None
+    title = formatted_title
+
     price = extract_price(text)
     location = extract_location(text)
     date_posted = extract_date(text)
